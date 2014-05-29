@@ -8,10 +8,9 @@ Gem::Specification.new do |spec|
   spec.version       = Marso::VERSION
   spec.authors       = ["Nicolas Dao"]
   spec.email         = ["nicolas@quivers.com"]
-  spec.homepage      = ["https://github.com/nicolasdao/marso"]
+  spec.homepage      = "https://github.com/nicolasdao/marso"
   spec.summary       = %q{Marso is a lightweight BDD project}
   spec.description   = %q{Marso is the beginning of a small lightweight BDD project. Currently, this is just a very simple code sample that only displays a custom message in green or in red depending on the value of a predicate.}
-  spec.homepage      = ""
   spec.license       = "MIT"
 
   spec.files         = `git ls-files -z`.split("\x0")
@@ -20,7 +19,7 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.add_development_dependency "bundler", "~> 1.6"
-  spec.add_development_dependency "rake"
-  spec.add_runtime_dependency "colorize"
-  spec.add_runtime_dependency "watir-webdriver", "~>0.6.9"
+  spec.add_development_dependency "rake", "~> 10.3"
+  spec.add_runtime_dependency "colorize", "~> 0.7"
+  spec.add_runtime_dependency "watir-webdriver", "~>0.6"
 end
