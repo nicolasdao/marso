@@ -1,4 +1,4 @@
-require "marso/version"
+require "./marso/version"
 require "colorize"
 
 module Marso
@@ -12,7 +12,7 @@ module Marso
 				puts "Assert #{message}: FAILED".red
 			end
 		rescue Exception => e
-			puts "Assert #{message} FAILED with exception #{e}"
+			puts "Assert #{message} FAILED with exception #{e}".red
 		end
 	end
 end
