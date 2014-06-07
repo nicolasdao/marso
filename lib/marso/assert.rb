@@ -3,7 +3,7 @@ require "colorize"
 module Marso
 	module_function
 
-	def assert message, &block
+	def assert(message, &block)
 		begin
 			if (block.call)
 				puts "Assert #{message}: PASSED".green
@@ -11,7 +11,7 @@ module Marso
 				puts "Assert #{message}: FAILED".red
 			end
 		rescue Exception => e
-			puts "Assert #{message} FAILED with exception #{e}".red
+			puts "Assert #{message} FAILED with exception #{e.message}".red
 		end
 	end
 end

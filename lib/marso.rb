@@ -1,3 +1,5 @@
 require "marso/version"
 require "marso/assert"
 require "marso/factories"
+require "marso/config"
+require "marso/scenario"
