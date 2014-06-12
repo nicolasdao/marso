@@ -1,11 +1,11 @@
 module Marso
   class Config
     @@configuration={
-      # If true, the result of each step is output to the console in realtime.
-      # The consequence os setting that config to true is that steps
-      # may be harder to read together when multiple scenarios are executed
-      # paralell. Steps of different scenarios may indeed be intertwined in the
-      # console
+      # If true, the result of each step is output to the console in realtime
+      # rather than waiting for the entire scenario to finish and then display
+      # all the steps all at once. Setting that config to true may make reading
+      # the output harder when multiple scenarios are executed in paralell.
+      # Steps of different scenarios may indeed be intertwined in the console
       :realtime_step_stdout => false,
 
       # If true, all steps of the same scenario defined after a broken step(i.e.

@@ -1,19 +1,78 @@
 require 'colorize'
 require 'securerandom'
 require_relative 'config'
+require_relative 'helpers/texthelper'
 
 module Marso
 
+  class ScenarioContext
+    attr_reader :id, :before_run, :get_scenario, :after_run, :ctx, :status,
+    :description, :story_id, :feature_id
+
+    def initialize(description, ctx={})
+      validate_arguments(description, ctx)
+
+      @description = description.clone
+
+      @description[:id] = SecureRandom.hex(4) if description[:id].nil?
+      @description[:status] = :none if description[:status].nil?
+      @ctx=ctx.clone
+
+      @id = @description[:id]
+      @before_run=@description[:before_run]
+      @get_scenario=@description[:get_scenario]
+      @after_run=@description[:after_run]
+      @status=@description[:status]
+
+      @story_id = ctx[:story_id]
+      @feature_id = ctx[:feature_id]
+    end
+
+    def run
+      @before_run.call(@description[:id], @ctx) unless @before_run.nil?
+      s = @get_scenario.call(@id, @ctx)
+      runned_scenario = s.run
+      @after_run.call(@id, @ctx) unless @after_run.nil?
+
+      updated_description = @description.clone
+      updated_description[:get_scenario] = proc { runned_scenario }
+      updated_description[:status] = runned_scenario.status
+
+      return ScenarioContext.new(updated_description, @ctx)
+    end
+
+    def puts_scenario
+      s = @get_scenario.call(@id, @ctx)
+      s.puts_description
+    end
+
+    def get_colorized_description
+      s = @get_scenario.call(@id, @ctx)
+      s.get_colorized_description
+    end
+
+    private
+      def validate_arguments(description, ctx)
+        raise ArgumentError, "Argument 'ctx' must be a Hash" unless ctx.is_a?(Hash)
+        raise ArgumentError, "Argument 'description' cannot be nil" if description.nil?
+        raise ArgumentError, "Argument 'description' must define a :get_scenario key that points to a closure that returns a Marso::Scenario object" if description[:get_scenario].nil?
+      end
+  end
+
   class Scenario
+    include TextHelper
+
     ISSUES_LIST = [:error, :failed, :cancelled]
     @@color_options=nil
     @@color_options_size=0
-    attr_reader :name, :steps, :id, :status, :color_theme, :cancel_steps_upon_issues,
-    :realtime_step_stdout
+    attr_reader :name, :steps, :id, :status, :color_theme,
+    :cancel_steps_upon_issues, :realtime_step_stdout, :ctx, :story_id,
+    :feature_id
 
-    # name: Scenario's name
-    # options:
-    #   :id => hex string (length 8). Default is randomly generated
+    # description: Hash defined as follow
+    #   :id => Arbitrary number or string. Default is randomly generated
+    #          (hex string (length 8))
+    #   :name => Scenario's name
     #   :steps => array of Step objects
     #   :color_theme => color from gem 'colorize'(e.g. :blue). That allows
     #                   to visually group all steps from the same scenario.
@@ -22,45 +81,67 @@ module Marso
     #                                a broken step(i.e. step in status :failed,
     #                                :error, or :cancelled) will not be
     #                                executed, and will all be set so their
-    #                                status is :cancelled. If defined, it
-    #                                overrides the Config.cancel_steps_upon_issues
-    #                                setting.
-    def initialize(name, options={})
+    #                                status is :cancelled.
+    #
+    #                                If defined, it overrides the
+    #                                Config.cancel_steps_upon_issues setting.
+    #   :realtime_step_stdout => Boolean. If true, the result of each step is
+    #                            output to the console in realtime rather than
+    #                            waiting for the entire scenario to finish and
+    #                            then display all the steps all at once. Setting
+    #                            that config to true may make reading the output
+    #                            harder when multiple scenarios are executed in
+    #                            paralell.Steps of different scenarios may
+    #                            indeed be intertwined in the console.
+    #
+    #                            If defined, it overrides the
+    #                            Config.realtime_step_stdout setting.
+    def initialize(description, ctx={})
+      validate_arguments(description, ctx)
 
       if @@color_options.nil?
         @@color_options = String.colors
         @@color_options_size = @@color_options.size
       end
 
-      @name = name
+      @name = description[:name]
+      @ctx = ctx.clone
+
+      @indent_steps = 0
+      @indent_steps+=1 unless ctx[:story_id].nil?
+      @indent_steps+=1 unless ctx[:feature_id].nil?
+
+      @story_id = ctx[:story_id]
+      @feature_id = ctx[:feature_id]
+
       @id =
-        options.key?(:id) ?
-        options[:id] :
+        description.key?(:id) ?
+        description[:id] :
         SecureRandom.hex(4)
 
       @status =
-        options.key?(:status) ?
-        options[:status] :
-        :pending
+        description.key?(:status) ?
+        description[:status] :
+        :none
 
       @color_theme =
-        options.key?(:color_theme) ?
-        options[:color_theme] :
+        description.key?(:color_theme) ?
+        description[:color_theme] :
         @@color_options[rand(@@color_options_size)]
 
       @steps =
-        options.key?(:steps) ?
-        options[:steps].map { |s| Step.new(s.text, @id, @color_theme, s.status, &s.block) } :
+        description.key?(:steps) ?
+        description[:steps].map { |s| Step.new(s.text, @id, @color_theme, s.status, &s.block) } :
         []
 
       @cancel_steps_upon_issues =
-        options.key?(:cancel_steps_upon_issues) ?
-        options[:cancel_steps_upon_issues] :
+        description.key?(:cancel_steps_upon_issues) ?
+        description[:cancel_steps_upon_issues] :
         Marso::Config.get(:cancel_steps_upon_issues)
 
       @realtime_step_stdout =
-        options.key?(:realtime_step_stdout) ?
-        options[:realtime_step_stdout] :
+        description.key?(:realtime_step_stdout) ?
+        description[:realtime_step_stdout] :
         Marso::Config.get(:realtime_step_stdout)
     end
 
@@ -88,12 +169,12 @@ module Marso
       previous_step_status = nil
       scenario_status = :passed
       no_issues = true
-      puts "Scenario #{@id}".colorize(@color_theme) + ": " + "#{name}".blue if @realtime_step_stdout
+      puts_indented("Scenario #{@id}".colorize(@color_theme) + ": " + "#{name}".blue) if @realtime_step_stdout
 
       processed_steps = @steps.map { |s|
         executed_step = execute_step(s, previous_step_status)
 
-        print executed_step.print_context if @realtime_step_stdout
+        print_indented(executed_step.print_description) if @realtime_step_stdout
 
         previous_step_status = executed_step.status
 
@@ -114,32 +195,55 @@ module Marso
         executed_step
       }
 
-      return Scenario.new(@name, {
-        :id => @id,
-        :steps => processed_steps,
-        :status => scenario_status,
-        :color_theme => @color_theme
-      })
+      updated_scenario = Scenario.new(
+        {
+          :id => @id,
+          :name => @name,
+          :steps => processed_steps,
+          :status => scenario_status,
+          :color_theme => @color_theme
+        },
+        @ctx)
+
+      updated_scenario.puts_description unless @realtime_step_stdout
+
+      return updated_scenario
     end
 
-    def context
+    def description
       return
         "Scenario #{@id}: #{name}\n" +
         (@steps.any? ? @steps.map { |s| s.context }.join("\n") : "")
     end
 
-    def print_context
-      puts "Scenario #{@id}".colorize(@color_theme) + ": " + "#{name}".blue
-      @steps.map { |s| s.print_context  } if !@steps.nil?
+    def puts_description
+      puts_indented self.get_colorized_description
     end
 
+    def print_description
+      print_indented self.get_colorized_description
+    end
+
+    def get_colorized_description
+      scen_parts = [get_header.colorize(@color_theme) + ": " + "#{@name}".blue]
+      if !@steps.nil?
+        (scen_parts | @steps.map { |s| s.get_description_for_print  }).join("\n")
+      else
+        scen_parts[0]
+      end
+    end
 
     private
 
+      def validate_arguments(description, ctx)
+          raise ArgumentError, "Argument 'description' must be a Hash" unless description.is_a?(Hash)
+          raise ArgumentError, "Argument 'ctx' must be a Hash" unless ctx.is_a?(Hash)
+      end
+
       def add_step(step_type, assumption_text, *args, &block)
         body_msg = nil
-        status = :pending
-        step_name = step_type.to_s
+        status = :none
+        step_name = step_type.to_s.capitalize
 
         begin
           body_msg = "#{step_name} " + assumption_text % args
@@ -154,12 +258,15 @@ module Marso
 
         new_step_series = @steps | [Step.new(body_msg, @id, color_theme, status, &block)]
 
-        return Scenario.new(@name, {
-          :id => @id,
-          :steps => new_step_series,
-          :status => @status,
-          :color_theme => @color_theme
-        })
+        return Scenario.new(
+          {
+            :id => @id,
+            :name => @name,
+            :steps => new_step_series,
+            :status => @status,
+            :color_theme => @color_theme
+          },
+          @ctx)
       end
 
       def execute_step(step, previous_step_status)
@@ -170,6 +277,14 @@ module Marso
           return step.execute
         end
       end
+
+      def get_header
+        header = []
+        header << "Feature #{@ctx[:feature_id]}" unless @ctx[:feature_id].nil?
+        header << "Story #{@ctx[:story_id]}" unless @ctx[:story_id].nil?
+        header << "Scenario #{@id}"
+        header.join(" - ")
+      end
   end
 
   # A 'Step' is a Scenario's part. It contains
@@ -177,7 +292,7 @@ module Marso
   # as a status that indicates whether or not that step
   # has already been executed. This status can take the
   # following values:
-  # => :pending
+  # => :none
   # => :passed
   # => :failed
   # => :cancelled
@@ -185,7 +300,7 @@ module Marso
   class Step
     attr_reader :text, :status, :color_theme, :scenario_id, :block
 
-    def initialize(text, scenario_id, color_theme, status=:pending, &block)
+    def initialize(text, scenario_id, color_theme, status=:none, &block)
       @text=text
       @status=status
       @block=block
@@ -201,12 +316,12 @@ module Marso
       end
     end
 
-    def context
+    def description
       scenario_id = "#{@scenario_id}"
       body = nil
       case @status
-      when :pending
-        body = "#{@text}: PENDING"
+      when :none
+        body = "#{@text}"
       when :passed
           body = "#{@text}: PASSED"
       when :failed
@@ -221,12 +336,16 @@ module Marso
 
     end
 
-    def print_context
+    def print_description
+      puts self.get_description_for_print
+    end
+
+    def get_description_for_print
       scenario_id = "#{@scenario_id}".colorize(@color_theme)
       body = nil
       case @status
-      when :pending
-        body = "#{@text}: PENDING".light_yellow
+      when :none
+        body = "#{@text}".light_yellow
       when :passed
           body = "#{@text}: PASSED".green
       when :failed
@@ -237,8 +356,7 @@ module Marso
         body = "#{@text}".red
       end
 
-      puts "#{scenario_id}: #{body}"
-
+      return "#{scenario_id}: #{body}"
     end
 
     private
