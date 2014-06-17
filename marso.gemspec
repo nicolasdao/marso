@@ -37,4 +37,5 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "rake", "~> 10.3"
   spec.add_runtime_dependency "colorize", "~> 0.7"
   spec.add_runtime_dependency "watir-webdriver", "~> 0.6"
+  spec.add_runtime_dependency "eventmachine", "~> 1.0"
 end

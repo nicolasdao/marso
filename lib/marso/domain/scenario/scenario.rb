@@ -1,7 +1,7 @@
 require 'colorize'
 require 'securerandom'
-require_relative 'config'
-require_relative 'helpers/texthelper'
+require_relative '../../config'
+require_relative 'scenario_publish'
 
 module Marso
 
@@ -9,7 +9,7 @@ module Marso
     attr_reader :id, :before_run, :get_scenario, :after_run, :ctx, :status,
     :description, :story_id, :feature_id
 
-    def initialize(description, ctx={})
+    def initialize(description, ctx)
       validate_arguments(description, ctx)
 
       @description = description.clone
@@ -46,9 +46,9 @@ module Marso
       s.puts_description
     end
 
-    def get_colorized_description
+    def indented_colorized_text
       s = @get_scenario.call(@id, @ctx)
-      s.get_colorized_description
+      s.indented_colorized_text
     end
 
     private
@@ -60,14 +60,16 @@ module Marso
   end
 
   class Scenario
-    include TextHelper
+    include ScenarioPublish
 
     ISSUES_LIST = [:error, :failed, :cancelled]
+
     @@color_options=nil
     @@color_options_size=0
+
     attr_reader :name, :steps, :id, :status, :color_theme,
     :cancel_steps_upon_issues, :realtime_step_stdout, :ctx, :story_id,
-    :feature_id
+    :feature_id, :header, :tree_position
 
     # description: Hash defined as follow
     #   :id => Arbitrary number or string. Default is randomly generated
@@ -107,9 +109,9 @@ module Marso
       @name = description[:name]
       @ctx = ctx.clone
 
-      @indent_steps = 0
-      @indent_steps+=1 unless ctx[:story_id].nil?
-      @indent_steps+=1 unless ctx[:feature_id].nil?
+      @tree_position = 0
+      @tree_position+=1 unless ctx[:story_id].nil?
+      @tree_position+=1 unless ctx[:feature_id].nil?
 
       @story_id = ctx[:story_id]
       @feature_id = ctx[:feature_id]
@@ -133,6 +135,8 @@ module Marso
         description.key?(:steps) ?
         description[:steps].map { |s| Step.new(s.text, @id, @color_theme, s.status, &s.block) } :
         []
+
+      @header = get_header(@id, @ctx)
 
       @cancel_steps_upon_issues =
         description.key?(:cancel_steps_upon_issues) ?
@@ -165,18 +169,29 @@ module Marso
       return add_step(:but, assumption_text, *args, &block)
     end
 
+    # include_id will prepend the scenario id to the step's description.
+    # This can be useful in the case where each step is being output to the
+    # console in realtime. In that situation multiple steps from multiple
+    # scenarios may be intertwined if they are executed concurently. Without
+    # the scenario id, it may be difficult to identify which step belongs to
+    # which scenario
+    def text(include_id=false)
+      return
+        "{@header}: #{name}\n" +
+        (@steps.any? ? @steps.map { |s| s.text(include_id) }.join("\n") : "")
+    end
+
     def run
       previous_step_status = nil
       scenario_status = :passed
       no_issues = true
-      puts_indented("Scenario #{@id}".colorize(@color_theme) + ": " + "#{name}".blue) if @realtime_step_stdout
 
       processed_steps = @steps.map { |s|
-        executed_step = execute_step(s, previous_step_status)
+        runned_step = run_step(s, previous_step_status)
 
-        print_indented(executed_step.print_description) if @realtime_step_stdout
+        print_indented(runned_step.print_description) if @realtime_step_stdout
 
-        previous_step_status = executed_step.status
+        previous_step_status = runned_step.status
 
         if no_issues
           case previous_step_status
@@ -192,7 +207,7 @@ module Marso
           end
         end
 
-        executed_step
+        runned_step
       }
 
       updated_scenario = Scenario.new(
@@ -205,32 +220,7 @@ module Marso
         },
         @ctx)
 
-      updated_scenario.puts_description unless @realtime_step_stdout
-
       return updated_scenario
-    end
-
-    def description
-      return
-        "Scenario #{@id}: #{name}\n" +
-        (@steps.any? ? @steps.map { |s| s.context }.join("\n") : "")
-    end
-
-    def puts_description
-      puts_indented self.get_colorized_description
-    end
-
-    def print_description
-      print_indented self.get_colorized_description
-    end
-
-    def get_colorized_description
-      scen_parts = [get_header.colorize(@color_theme) + ": " + "#{@name}".blue]
-      if !@steps.nil?
-        (scen_parts | @steps.map { |s| s.get_description_for_print  }).join("\n")
-      else
-        scen_parts[0]
-      end
     end
 
     private
@@ -269,128 +259,21 @@ module Marso
           @ctx)
       end
 
-      def execute_step(step, previous_step_status)
+      def run_step(step, previous_step_status)
         if ISSUES_LIST.include?(previous_step_status) && @cancel_steps_upon_issues
           cancelled_step = Step.new(step.text, @id, @color_theme, :cancelled, &step.block)
           return cancelled_step.execute
         else
-          return step.execute
+          return step.run
         end
       end
 
-      def get_header
+      def get_header(id, ctx)
         header = []
-        header << "Feature #{@ctx[:feature_id]}" unless @ctx[:feature_id].nil?
-        header << "Story #{@ctx[:story_id]}" unless @ctx[:story_id].nil?
-        header << "Scenario #{@id}"
+        header << "Feature #{ctx[:feature_id]}" unless ctx[:feature_id].nil?
+        header << "Story #{ctx[:story_id]}" unless ctx[:story_id].nil?
+        header << "Scenario #{id}"
         header.join(" - ")
-      end
-  end
-
-  # A 'Step' is a Scenario's part. It contains
-  # a text that describe what that step does, as well
-  # as a status that indicates whether or not that step
-  # has already been executed. This status can take the
-  # following values:
-  # => :none
-  # => :passed
-  # => :failed
-  # => :cancelled
-  # => :error
-  class Step
-    attr_reader :text, :status, :color_theme, :scenario_id, :block
-
-    def initialize(text, scenario_id, color_theme, status=:none, &block)
-      @text=text
-      @status=status
-      @block=block
-      @scenario_id=scenario_id
-      @color_theme = color_theme
-    end
-
-    def execute
-      if @status != :cancelled
-        execute_block
-      else
-        return self
-      end
-    end
-
-    def description
-      scenario_id = "#{@scenario_id}"
-      body = nil
-      case @status
-      when :none
-        body = "#{@text}"
-      when :passed
-          body = "#{@text}: PASSED"
-      when :failed
-        body = "#{@text}: FAILED"
-      when :cancelled
-        body = "#{@text}: CANCELLED"
-      when :error
-        body = "#{@text}"
-      end
-
-      return "#{scenario_id}: #{body}"
-
-    end
-
-    def print_description
-      puts self.get_description_for_print
-    end
-
-    def get_description_for_print
-      scenario_id = "#{@scenario_id}".colorize(@color_theme)
-      body = nil
-      case @status
-      when :none
-        body = "#{@text}".light_yellow
-      when :passed
-          body = "#{@text}: PASSED".green
-      when :failed
-        body = "#{@text}: FAILED".red
-      when :cancelled
-        body = "#{@text}: CANCELLED".light_black
-      when :error
-        body = "#{@text}".red
-      end
-
-      return "#{scenario_id}: #{body}"
-    end
-
-    private
-      def execute_block
-        operation = lambda { |x|
-          begin
-            result = @block.call
-            result_type = result.class
-            if result_type == TrueClass || result_type == FalseClass
-              if result
-                return :passed, nil
-              else
-                return :failed, nil
-              end
-            else
-              return :passed, nil
-            end
-          rescue Exception => e
-            return :error, e
-          end
-        }
-
-        status, err = operation.call(nil)
-
-        updated_text = @text
-
-        if status==:error
-          updated_text =
-            "#{text}: ERROR\n" +
-            "#{err.message}\n" +
-            "#{err.backtrace}"
-        end
-
-        return Step.new(updated_text, @scenario_id, @color_theme, status, &@block)
       end
   end
 end

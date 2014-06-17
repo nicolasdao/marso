@@ -1,5 +1,6 @@
 
 class Symbol
+
   def > s
     return bigger(s)
   end
@@ -20,6 +21,23 @@ class Symbol
     end
   end
 
+  def to_load_mode
+    case self
+    when :none
+      return :none
+    when :with_stories
+      return :stories
+    when :with_stories_scenarios
+      return :stories_with_scenarios
+    when :with_scenarios
+      return :scenario_contexts
+    when :with_all
+      return :all
+    else
+      return self
+    end
+  end
+
   private
     def bigger(s, indlude_equal=false)
       if self == :none
@@ -30,7 +48,7 @@ class Symbol
           return false
         when :cancelled
           return false
-        when :failed_no_scenarios
+        when :failed_no_component
           return false
         when :failed
           return false
@@ -49,7 +67,7 @@ class Symbol
           return indlude_equal
         when :cancelled
           return false
-        when :failed_no_scenarios
+        when :failed_no_component
           return false
         when :failed
           return false
@@ -68,7 +86,7 @@ class Symbol
           return true
         when :cancelled
           return indlude_equal
-        when :failed_no_scenarios
+        when :failed_no_component
           return false
         when :failed
           return false
@@ -79,7 +97,7 @@ class Symbol
         end
       end
 
-      if self == :failed_no_scenarios
+      if self == :failed_no_component
         case s
         when :none
           return true
@@ -87,7 +105,7 @@ class Symbol
           return true
         when :cancelled
           return true
-        when :failed_no_scenarios
+        when :failed_no_component
           return indlude_equal
         when :failed
           return false
@@ -106,7 +124,7 @@ class Symbol
           return true
         when :cancelled
           return true
-        when :failed_no_scenarios
+        when :failed_no_component
           return true
         when :failed
           return indlude_equal
@@ -125,7 +143,7 @@ class Symbol
           return true
         when :cancelled
           return true
-        when :failed_no_scenarios
+        when :failed_no_component
           return true
         when :failed
           return true
@@ -145,7 +163,7 @@ class Array
       _status = self.reduce { |x,y| Marso.item_with_stronger_status(x, y) }.status
     end
 
-    return _status == :failed_no_scenarios ? :failed : _status
+    return _status == :failed_no_component ? :failed : _status
   end
 end
 
