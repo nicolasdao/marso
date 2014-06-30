@@ -1,0 +1,6 @@
+scenario:
+ id: "8f943a"
+ name: "Add one item to my shopping cart"
+ given: "I'm currently browsing a product catalog"
+ when: "I click on the 'Add to cart' button of a product"
+ then: "a popup box appears saying that the product has been successfully added to my shopping cart"

@@ -10,12 +10,12 @@ module Marso
     include FeaturePublish
 
     attr_reader :id, :description, :status, :ctx, :stories, :scenario_contexts,
-    :rootpath, :header, :text, :tree_position, :color_theme
+    :rootpath, :header, :text, :tree_position, :color_theme, :name, :fname
 
     # description (optional): Hash defined as follow
     #   :id => Arbitrary number or string. Default is randomly generated
-    #          (hex string (length 8))
-    #   :name => Story's name
+    #          (hex string (length 6))
+    #   :name => Feature's name
     #   :in_order_to => String that describes the fundamental story's business
     #                   value
     #   :as_a => String that describes the user(s)
@@ -37,9 +37,11 @@ module Marso
 
       @description[:scenario_contexts] = [] if description[:scenario_contexts].nil?
       @description[:stories] = [] if description[:stories].nil?
-      @description[:id] = SecureRandom.hex(4) if description[:id].nil?
+      @description[:id] = SecureRandom.hex(3) if description[:id].nil?
       @description[:rootpath] = File.dirname(caller[0]) if description[:rootpath].nil?
 
+      @name = @description[:name]
+      @fname = @description[:name].downcase.gsub(' ', '_')
       @rootpath = @description[:rootpath]
       @id = @description[:id]
       @scenario_contexts = @description[:scenario_contexts]
@@ -73,6 +75,7 @@ module Marso
       def validate_arguments(description, ctx)
         raise ArgumentError, "Argument 'description' cannot be nil" if description.nil?
         raise ArgumentError, "Argument 'description' must be a Hash" unless description.is_a?(Hash)
+        raise ArgumentError, "Argument 'description[:name]' is required" if description[:name].nil?
         raise ArgumentError, "Argument 'ctx' must be a Hash" unless ctx.is_a?(Hash)
         unless description[:scenario_contexts].nil?
           unless description[:scenario_contexts].empty?

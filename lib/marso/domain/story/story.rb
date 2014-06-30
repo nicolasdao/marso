@@ -10,11 +10,11 @@ module Marso
     include StoryPublish
 
     attr_reader :id, :description, :status, :ctx, :scenario_contexts,
-    :feature_id, :tree_position, :header, :text, :color_theme, :rootpath
+    :feature_id, :tree_position, :header, :text, :color_theme, :rootpath, :name, :fname
 
     # description (optional): Hash defined as follow
     #   :id => Arbitrary number or string. Default is randomly generated
-    #          (hex string (length 8))
+    #          (hex string (length 6))
     #   :name => Story's name
     #   :in_order_to => String that describes the fundamental story's business
     #                   value
@@ -35,9 +35,11 @@ module Marso
       @ctx = ctx.clone
 
       @description[:scenario_contexts] = [] if description[:scenario_contexts].nil?
-      @description[:id] = SecureRandom.hex(4) if description[:id].nil?
+      @description[:id] = SecureRandom.hex(3) if description[:id].nil?
       @description[:rootpath] = File.dirname(caller[0]) if description[:rootpath].nil?
 
+      @name = @description[:name]
+      @fname = @description[:name].downcase.gsub(' ', '_')
       @rootpath = @description[:rootpath]
       @id = @description[:id]
       @scenario_contexts = @description[:scenario_contexts]
@@ -60,6 +62,7 @@ module Marso
 
       def validate_arguments(description, ctx)
         raise ArgumentError, "Argument 'description' cannot be nil" if description.nil?
+        raise ArgumentError, "Argument 'description[:name]' is required" if description[:name].nil?
         raise ArgumentError, "Argument 'description' must be a Hash" unless description.is_a?(Hash)
         raise ArgumentError, "Argument 'ctx' must be a Hash" unless ctx.is_a?(Hash)
         unless description[:scenario_contexts].nil?

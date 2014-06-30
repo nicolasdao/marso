@@ -1,3 +1,3 @@
 module Marso
-  VERSION ="0.1.29007"
+  VERSION ="0.1.47950"
 end

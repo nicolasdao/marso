@@ -1,0 +1,6 @@
+story:
+ id: "8f943a"
+ name: "Add to shopping cart"
+ in_order_to: "buy more than one item in a single transaction"
+ as_a: "online consumer"
+ i: "want to add items to a shopping cart"

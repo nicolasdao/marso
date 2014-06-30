@@ -1,4 +1,4 @@
-require 'colorize'
+     require 'colorize'
 require 'securerandom'
 require_relative '../../config'
 require_relative 'scenario_publish'
@@ -13,16 +13,16 @@ module Marso
       validate_arguments(description, ctx)
 
       @description = description.clone
-
-      @description[:id] = SecureRandom.hex(4) if description[:id].nil?
-      @description[:status] = :none if description[:status].nil?
       @ctx=ctx.clone
 
+      @description[:id] = SecureRandom.hex(3) if description[:id].nil?
+      @description[:status] = :none if description[:status].nil?
+
       @id = @description[:id]
-      @before_run=@description[:before_run]
-      @get_scenario=@description[:get_scenario]
-      @after_run=@description[:after_run]
-      @status=@description[:status]
+      @before_run = @description[:before_run]
+      @get_scenario = @description[:get_scenario]
+      @after_run = @description[:after_run]
+      @status = @description[:status]
 
       @story_id = ctx[:story_id]
       @feature_id = ctx[:feature_id]
@@ -69,7 +69,7 @@ module Marso
 
     attr_reader :name, :steps, :id, :status, :color_theme,
     :cancel_steps_upon_issues, :realtime_step_stdout, :ctx, :story_id,
-    :feature_id, :header, :tree_position
+    :feature_id, :header, :tree_position, :fname
 
     # description: Hash defined as follow
     #   :id => Arbitrary number or string. Default is randomly generated
@@ -107,6 +107,7 @@ module Marso
       end
 
       @name = description[:name]
+      @fname = description[:name].downcase.gsub(' ', '_')
       @ctx = ctx.clone
 
       @tree_position = 0
@@ -226,8 +227,9 @@ module Marso
     private
 
       def validate_arguments(description, ctx)
-          raise ArgumentError, "Argument 'description' must be a Hash" unless description.is_a?(Hash)
-          raise ArgumentError, "Argument 'ctx' must be a Hash" unless ctx.is_a?(Hash)
+        raise ArgumentError, "Argument 'description' must be a Hash" unless description.is_a?(Hash)
+        raise ArgumentError, "Argument 'description[:name]' is required" if description[:name].nil?
+        raise ArgumentError, "Argument 'ctx' must be a Hash" unless ctx.is_a?(Hash)
       end
 
       def add_step(step_type, assumption_text, *args, &block)

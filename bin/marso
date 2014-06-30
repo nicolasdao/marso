@@ -1,0 +1,342 @@
+#!/usr/bin/env ruby
+
+require 'marso'
+require 'colorize'
+require 'pathname'
+require 'fileutils'
+
+LAUNCHER_OPTIONS_KEYS_MAP = {
+	"-p" => :rootpath,
+	"-f" => :select,
+	"-m" => :include_mode
+}
+
+def help
+	puts "Usage: No documentation yet"
+end
+
+def location_is_stories?(path=nil)
+	path = path || Dir.pwd
+	File.basename(path).casecmp("stories") == 0
+end
+
+def location_is_features?(path=nil)
+	path = path || Dir.pwd
+	File.basename(path).casecmp("features") == 0
+end
+
+def location_is_scenarios?(path=nil)
+	path = path || Dir.pwd
+	File.basename(path).casecmp("scenarios") == 0
+end
+
+def location_is_story?(path=nil)
+	path = path || Dir.pwd
+	parent_path = File.expand_path("../", path)
+	location_is_stories? parent_path
+end
+
+def location_is_feature?(path=nil)
+	path = path || Dir.pwd
+	parent_path = File.expand_path("../", path)
+	location_is_features? parent_path
+end
+
+def location_is_scenario?(path=nil)
+	path = path || Dir.pwd
+	parent_path = File.expand_path("../", path)
+	location_is_scenarios? parent_path
+end
+
+def location_is_stories_realm?(path=nil)
+	path = path || Dir.pwd
+	location_is_stories?(path) || location_is_story?(path)
+end
+
+def location_is_features_realm?(path=nil)
+	path = path || Dir.pwd
+	location_is_features?(path) || location_is_feature?(path)
+end
+
+def location_is_scenarios_realm?(path=nil)
+	path = path || Dir.pwd
+	location_is_scenarios?(path) || location_is_scenario?(path)
+end
+
+def create_feature(name)
+	if location_is_scenarios_realm?
+		puts "Impossible to create a feature under scenarios. Please browse to another location".colorize(:red)
+	elsif location_is_stories_realm?
+		puts "Impossible to create a feature under stories. Please browse to another location".colorize(:red)
+	else
+		feature_factory = Marso::FeatureFactory.new
+		unless name
+			print "Enter feature's name: ".colorize(:cyan)
+			name = $stdin.gets.chomp
+		end
+		print "Do you want to describe your feature now(y/n)? ".colorize(:cyan)
+		answer = $stdin.gets.chomp
+		feat_description = nil
+		if answer.casecmp("y") == 0
+			print "In order to: ".colorize(:cyan)
+			in_order_to = $stdin.gets.chomp
+			print "As a: ".colorize(:cyan)
+			as_a = $stdin.gets.chomp
+			print "I: ".colorize(:cyan)
+			i = $stdin.gets.chomp
+			feat_description = {
+				:name => name,
+	 			:in_order_to => in_order_to,
+	 			:as_a => as_a,
+	 			:i => i
+			}
+		else
+			feat_description = { :name => name }
+		end
+
+		fname = nil
+		feat_folder = name.downcase.gsub(' ','_')
+		cancel_operation = false
+		current_folder_is_features = File.basename(Dir.pwd).casecmp("features") == 0
+		if current_folder_is_features
+			fname = feature_factory.create_feature_file(feat_description)
+		else # the question now is whether or not we want to create the Features folder
+			features_folder_is_a_subfolder = Dir.entries(Dir.pwd)
+				.select{ |f| File.directory? File.join(Dir.pwd,f ) }
+				.any?{ |f| f == "Features"  }
+
+			unless features_folder_is_a_subfolder
+				print "The current folder is not the 'Features' folder and it doesn't contain it either. Do you want to create[y] it, or cancel[n] the operation(y/n)? ".colorize(:cyan)
+				create_answer = $stdin.gets.chomp
+				if create_answer.casecmp("y") == 0
+					FileUtils.mkdir "Features"
+				else
+					cancel_operation = true
+				end
+			end
+			feat_root = File.join(Dir.pwd, "Features", feat_folder)
+			fname = feature_factory.create_feature_file(feat_description, feat_root)
+		end
+
+		if cancel_operation
+			puts "Operation cancelled".colorize(:pink)
+		else
+			puts "Feature file #{feat_folder}/#{fname} successfully created".colorize(:green)
+		end
+	end
+end
+
+def create_story(name)
+	if location_is_scenarios_realm?
+		puts "Impossible to create a story under scenarios. Please browse to another location".colorize(:red)
+	elsif location_is_features?
+		puts "Impossible to create a story straight under the Features folder. Please browse to a specific feature or story".colorize(:red)
+	elsif !location_is_feature? && !location_is_stories?
+		puts "Impossible to create a story here. Please browse to specific a feature or story".colorize(:red)
+	else
+		story_factory = Marso::StoryFactory.new
+		unless name
+			print "Enter story's name: ".colorize(:cyan)
+			name = $stdin.gets.chomp
+		end
+		print "Do you want to describe your story now(y/n)? ".colorize(:cyan)
+		answer = $stdin.gets.chomp
+		story_description = nil
+		if answer.casecmp("y") == 0
+			print "In order to: ".colorize(:cyan)
+			in_order_to = $stdin.gets.chomp
+			print "As a: ".colorize(:cyan)
+			as_a = $stdin.gets.chomp
+			print "I: ".colorize(:cyan)
+			i = $stdin.gets.chomp
+			story_description = {
+				:name => name,
+	 			:in_order_to => in_order_to,
+	 			:as_a => as_a,
+	 			:i => i
+			}
+		else
+			story_description = { :name => name }
+		end
+
+		fname = nil
+		story_folder = name.downcase.gsub(' ','_')
+		cancel_operation = false
+		current_folder_is_stories = File.basename(Dir.pwd).casecmp("stories") == 0
+		if current_folder_is_stories
+			fname = story_factory.create_story_file(story_description)
+		else # the question now is whether or not we want to create the Stories folder
+			stories_folder_is_a_subfolder = Dir.entries(Dir.pwd)
+				.select{ |f| File.directory? File.join(Dir.pwd,f ) }
+				.any?{ |f| f == "Stories"  }
+
+			unless stories_folder_is_a_subfolder
+				print "The current folder is not the 'Stories' folder and it doesn't contain it either. Do you want to create[y] it, or cancel[n] the operation(y/n)? ".colorize(:cyan)
+				create_answer = $stdin.gets.chomp
+				if create_answer.casecmp("y") == 0
+					FileUtils.mkdir "Stories"
+				else
+					cancel_operation = true
+				end
+			end
+			feat_root = File.join(Dir.pwd, "Stories", story_folder)
+			fname = story_factory.create_story_file(story_description, feat_root)
+		end
+
+		if cancel_operation
+			puts "Operation cancelled".colorize(:pink)
+		else
+			puts "Story file #{story_folder}/#{fname} successfully created".colorize(:green)
+		end
+	end
+end
+
+def create_scenario(name)
+	if location_is_features?
+		puts "Impossible to create a scenario straight under the Features folder. Please browse to a specific feature or story".colorize(:red)
+	elsif location_is_stories?
+		puts "Impossible to create a scenario straight under the Stories folder. Please browse to a specific feature or story".colorize(:red)
+	elsif !location_is_feature? && !location_is_story?
+		puts "Impossible to create a scenario here. Please browse to specific a feature or story".colorize(:red)
+	else
+		scenario_factory = Marso::ScenarioFactory.new
+		unless name
+			print "Enter scenario's name: ".colorize(:cyan)
+			name = $stdin.gets.chomp
+		end
+		print "Do you want to describe your scenario now(y/n)? ".colorize(:cyan)
+		answer = $stdin.gets.chomp
+		scenario_description = nil
+		if answer.casecmp("y") == 0
+			print "Given: ".colorize(:cyan)
+			_given = $stdin.gets.chomp
+			print "When: ".colorize(:cyan)
+			_when = $stdin.gets.chomp
+			print "Then: ".colorize(:cyan)
+			_then = $stdin.gets.chomp
+			scenario_description = {
+				:name => name,
+	 			:given => _given,
+	 			:when => _when,
+	 			:then => _then
+			}
+		else
+			scenario_description = { :name => name }
+		end
+
+		fname = nil
+		cancel_operation = false
+		current_folder_is_scenarios = File.basename(Dir.pwd).casecmp("stories") == 0
+		if current_folder_is_scenarios
+			fname = scenario_factory.create_scenario_file(scenario_description)
+		else # the question now is whether or not we want to create the Scenarios folder
+			scenarios_folder_is_a_subfolder = Dir.entries(Dir.pwd)
+				.select{ |f| File.directory? File.join(Dir.pwd,f ) }
+				.any?{ |f| f == "Scenarios"  }
+
+			unless scenarios_folder_is_a_subfolder
+				print "The current folder is not the 'Scenarios' folder and it doesn't contain it either. Do you want to create[y] it, or cancel[n] the operation(y/n)? ".colorize(:cyan)
+				create_answer = $stdin.gets.chomp
+				if create_answer.casecmp("y") == 0
+					FileUtils.mkdir "Scenarios"
+				else
+					cancel_operation = true
+				end
+			end
+			feat_root = File.join(Dir.pwd, "Scenarios")
+			fname = scenario_factory.create_scenario_file(scenario_description, feat_root)
+		end
+
+		if cancel_operation
+			puts "Operation cancelled".colorize(:pink)
+		else
+			puts "Scenario file #{fname} successfully created".colorize(:green)
+		end
+	end
+end
+
+def get_options
+	options = {}
+	if ARGV.size > 1
+		args = ARGV.clone
+		args.shift(2)
+		args.each do |arg| 
+			puts arg
+			kv = arg.split('=') 
+			key = LAUNCHER_OPTIONS_KEYS_MAP[kv[0]]
+			puts key
+			case key
+			when :rootpath
+				options[:rootpath] = kv[1]
+			when :select
+				options[:select] = kv[1].split(',')
+			when :include_mode
+				modes = kv[1].split(',')
+				if modes.any? { |m| m == "all"}
+					options[:include_mode] = :with_all
+				elsif modes.any? { |m| m == "scenarios"} && modes.any? { |m| m == "stories"}
+					options[:include_mode] = :with_stories_scenarios
+				elsif modes.any? { |m| m == "scenarios"}
+					options[:include_mode] = :with_scenarios
+				elsif modes.any? { |m| m == "stories"}
+					options[:include_mode] = :with_stories
+				end
+			end
+		end
+	end
+	return options
+end
+
+def show_features
+	options = get_options
+	puts options
+	Marso.show_features_text options
+end
+
+if ARGV.size > 0
+	main_command = ARGV[0].downcase
+	case main_command
+	when "add"
+		if ARGV.size == 1
+			puts "Missing argument(0 for 1). Use 'marso help' to find out about the usage".colorize(:red)
+		else
+			gherkin_type = ARGV[1].downcase
+			case gherkin_type
+			when "feature"
+				create_feature ARGV[2]
+			when "f"
+				create_feature ARGV[2]
+			when "story"
+				create_story ARGV[2]
+			when "s"
+				create_story ARGV[2]
+			when "scenario"
+				create_scenario ARGV[2]
+			when "scn"
+				create_scenario ARGV[2]
+			else
+				puts "#{gherkin_type} is not a Gherkin type. Use 'marso help' to find out about the usage".colorize(:red)
+			end
+		end
+	when "show"
+		if ARGV.size == 1
+			puts "Missing argument(0 for 1). Use 'marso help' to find out about the usage".colorize(:red)
+		else
+			gherkin_type = ARGV[1].downcase
+			case gherkin_type
+			when "feature"
+				show_features
+			when "f"
+				show_features
+			else
+				puts "#{gherkin_type} is not a Gherkin type. Use 'marso help' to find out about the usage".colorize(:red)
+			end
+		end
+	when "help"
+		help
+	when "h"
+		help
+	else
+		puts "#{main_command} is an invalid command. Use 'marso help' to find out about the usage".colorize(:red)
+	end
+end
